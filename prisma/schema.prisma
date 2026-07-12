@@ -1,0 +1,227 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// ORGANISATION LAYER (multi-org SaaS)
+// ============================================
+
+model Organisation {
+  id           String     @id @default(cuid())
+  name         String     // "Computer Engineering Students' Association"
+  shortName    String     // "CESA" — shown in compact UI
+  slug         String     @unique // "cesa" — used in URLs
+  logoUrl      String?    // Cloudinary URL or local path
+  primaryColor String?    // hex e.g. "#F26522"
+  accentColor  String?    // hex e.g. "#557C99"
+  contactEmail String?    // org's official contact
+  status       String     @default("active") // "active" | "suspended"
+  createdAt    DateTime   @default(now())
+  createdBy    String     // super admin's AdminUser id
+
+  elections    Election[]
+  members      OrgMember[]
+
+  @@index([status])
+}
+
+model OrgMember {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  adminUserId    String
+  admin          AdminUser    @relation(fields: [adminUserId], references: [id])
+  role           String       @default("org_admin") // "org_admin" | "org_viewer"
+  createdAt      DateTime     @default(now())
+
+  @@unique([organisationId, adminUserId])
+}
+
+// ============================================
+// ELECTION: Top-level tenant entity (org-scoped)
+// ============================================
+
+model Election {
+  id             String       @id @default(cuid())
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  name           String       // e.g. "CESA 25/26 Executive Elections"
+  description    String?
+  slug           String       @unique // URL-safe identifier, e.g. "cesa-2526"
+  status         String       @default("setup") // setup | active | closed | certified
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  createdBy      String       // AdminUser id of the creator
+
+  // Relations
+  config       ElectionConfig?
+  positions    Position[]
+  voterRoll    VoterRoll[]
+  pendingVotes PendingVote[]
+  votes        Vote[]
+  admins       ElectionAdmin[]
+
+  @@index([organisationId])
+}
+
+model ElectionAdmin {
+  id          String   @id @default(cuid())
+  electionId  String
+  election    Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  adminUserId String
+  admin       AdminUser @relation(fields: [adminUserId], references: [id])
+  role        String   @default("admin") // "admin" | "reviewer"
+  createdAt   DateTime @default(now())
+
+  @@unique([electionId, adminUserId])
+}
+
+// ============================================
+// ELECTION-SCOPED MODELS
+// ============================================
+
+model VoterRoll {
+  id           String   @id @default(cuid())
+  electionId   String
+  election     Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  matricNumber String
+  name         String
+  level        String?  // e.g., "100L", "200L"
+  hasVoted     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  
+  pendingVotes PendingVote[]
+
+  @@unique([electionId, matricNumber])
+  @@index([electionId])
+}
+
+model Position {
+  id         String      @id @default(cuid())
+  electionId String
+  election   Election    @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  title      String
+  required   Boolean     @default(true)
+  order      Int
+  candidates Candidate[]
+
+  @@index([electionId])
+}
+
+model Candidate {
+  id         String   @id @default(cuid())
+  positionId String
+  position   Position @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  name       String
+  photoUrl   String?
+  manifesto  String?
+  order      Int     @default(0)
+  // No electionId — scoped through Position.electionId
+}
+
+model PendingVote {
+  id                  String    @id @default(cuid())
+  electionId          String
+  election            Election  @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  matricNumber        String
+  cardPhotoUrl        String
+  captureWidth        Int?
+  captureHeight       Int?
+  choices             Json?
+  status              String    @default("awaiting_ballot")
+  // awaiting_ballot | pending_ocr | verified | pending_review | flagged_invalid | rejected
+  geminiExtracted     String?   // What the Gemini model extracted
+  geminiName          String?   // first two names Gemini extracted from the form
+  geminiDocValid      Boolean?  // whether Gemini confirmed this is a valid document
+  geminiRaw           String?   // Full response for reviewer context
+  reviewNote          String?   // human-readable explanation of why this went to review
+  reviewedBy          String?   // AdminUser.email
+  reviewedAt          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  voterRoll           VoterRoll? @relation(fields: [electionId, matricNumber], references: [electionId, matricNumber])
+
+  @@index([electionId])
+}
+
+model Vote {
+  id          String   @id @default(cuid())
+  electionId  String
+  election    Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  positionId  String
+  candidateId String
+  voterLevel  String?  // Demographic data, stripped of identity
+  castAt      DateTime @default(now())
+  // Deliberately NO foreign key to VoterRoll or PendingVote — anonymity by design
+
+  @@index([electionId])
+}
+
+// ============================================
+// PLATFORM-LEVEL MODELS (not election-scoped)
+// ============================================
+
+model AdminUser {
+  id              String          @id @default(cuid())
+  email           String          @unique
+  password        String
+  name            String
+  role            String          @default("reviewer") // reviewer | super_admin (platform-level)
+  createdAt       DateTime        @default(now())
+  elections       ElectionAdmin[] // per-election role assignments
+  orgMemberships  OrgMember[]     // per-org role assignments
+}
+
+// Deprecated — replaced by Gemini vision API. Safe to drop after next election cycle.
+model CardTemplate {
+  id           String  @id @default(cuid())
+  name         String  @unique // "old_print" | "new_print" | "temp_laminated"
+  matricRegion Json    // { x, y, width, height } as % of image dimensions
+  active       Boolean @default(true)
+  // Intentionally NOT scoped to election — OCR calibration is shared
+}
+
+model ElectionConfig {
+  id               String   @id @default(cuid())
+  electionId       String   @unique // 1:1 with Election
+  election         Election @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  opensAt          DateTime
+  closesAt         DateTime
+  resultsVisibility String  @default("manual") // "manual" | "auto"
+  resultsPublished Boolean  @default(false)
+  previewedAt      DateTime?
+  adminContact     String?  // WhatsApp, email, or other contact link
+}
+
+model AdminInvite {
+  id             String   @id @default(cuid())
+  email          String
+  electionId     String?  // null for org-level invites
+  organisationId String?  // set for org-level invites
+  role           String   @default("admin")
+  token          String   @unique @default(cuid())
+  expiresAt      DateTime
+  accepted       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  electionId     String?  // null for platform/org-level actions
+  organisationId String?  // set for org-level actions
+  adminId        String
+  action         String   // e.g. "election.created", "org.created"
+  detail         Json?    
+  createdAt      DateTime @default(now())
+}
+
+model RateLimit {
+  ip        String   @id
+  attempts  Int      @default(1)
+  resetAt   DateTime
+}
