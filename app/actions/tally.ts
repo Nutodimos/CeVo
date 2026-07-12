@@ -34,7 +34,7 @@ export async function runTallyJob(electionSlug: string) {
   for (const pv of pendingVotes) {
     try {
       // Execute the row in a single transaction
-      await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         // a) Safety check: has the user already voted?
         const voter = await tx.voterRoll.findUnique({
           where: { electionId_matricNumber: { electionId, matricNumber: pv.matricNumber } },
