@@ -4,13 +4,14 @@ import { getElectionBySlug } from "@/lib/election-context";
 import { verifyAdminSession } from "@/lib/admin-auth";
 import React from "react";
 import { renderToStream } from "@react-pdf/renderer";
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
+import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer";
 
 // PDF Styles
 const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: "Helvetica" },
-  header: { marginBottom: 20, borderBottomWidth: 2, borderBottomColor: "#557C99", paddingBottom: 10 },
-  title: { fontSize: 24, fontWeight: "bold", color: "#F26522", marginBottom: 5 },
+  header: { marginBottom: 20, borderBottomWidth: 2, borderBottomColor: "#557C99", paddingBottom: 10, position: "relative" },
+  logo: { width: 60, height: 60, objectFit: "contain", position: "absolute", top: 0, right: 0 },
+  title: { fontSize: 24, fontWeight: "bold", color: "#F26522", marginBottom: 5, paddingRight: 70 },
   subtitle: { fontSize: 16, color: "#557C99", marginBottom: 5 },
   text: { fontSize: 10, color: "#333333", marginBottom: 3 },
   section: { marginTop: 15, marginBottom: 10 },
@@ -30,9 +31,10 @@ const styles = StyleSheet.create({
 const ResultsPDF = ({ data }: { data: any }) => (
   <Document>
     <Page size="A4" style={styles.page}>
-      <View style={styles.header}>
-        <Text style={styles.title}>{data.electionName}</Text>
-        <Text style={styles.subtitle}>Official Election Results</Text>
+      <View style={[styles.header, { borderBottomColor: data.accentColor || "#557C99" }]}>
+        {data.logoUrl && <Image src={data.logoUrl} style={styles.logo} />}
+        <Text style={[styles.title, { color: data.primaryColor || "#F26522" }]}>{data.electionName}</Text>
+        <Text style={[styles.subtitle, { color: data.accentColor || "#557C99" }]}>Official Election Results</Text>
         <Text style={styles.text}>Opened: {data.openedAt}</Text>
         <Text style={styles.text}>Closed: {data.closedAt}</Text>
       </View>
@@ -83,6 +85,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
 
   const election = await getElectionBySlug(slug);
   const config = await prisma.electionConfig.findUnique({ where: { electionId: election.id } });
+  const org = await prisma.organisation.findUnique({ where: { id: election.organisationId } });
   
   if (!config || !config.resultsPublished) {
     return new NextResponse("Results are not yet published.", { status: 403 });
@@ -135,7 +138,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
     closedAt: config.closesAt ? formatDate(config.closesAt) : "N/A",
     totalRegistered,
     totalVoted,
-    positions
+    positions,
+    logoUrl: org?.logoUrl,
+    primaryColor: org?.primaryColor,
+    accentColor: org?.accentColor,
   };
 
   if (format === "csv") {

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Users, CheckCircle, Archive, Plus, Play, Settings, Ban } from "lucide-react";
 import OrgActions from "./OrgActions";
+import ResendInviteButton from "./ResendInviteButton";
 
 export default async function OrgDetailPage({ params }: { params: Promise<{ orgSlug: string }> }) {
   const resolvedParams = await params;
@@ -111,9 +112,12 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ orgS
                 <div className="font-medium">{m.admin.name}</div>
                 <div className="text-sm text-foreground/50">{m.admin.email}</div>
               </div>
-              <span className="text-xs font-medium px-2 py-1 rounded bg-white/5 border border-white/10 capitalize">
-                {m.role.replace("_", " ")}
-              </span>
+              <div className="flex items-center gap-4">
+                <span className="text-xs font-medium px-2 py-1 rounded bg-white/5 border border-white/10 capitalize">
+                  {m.role.replace("_", " ")}
+                </span>
+                <ResendInviteButton adminUserId={m.admin.id} orgSlug={orgSlug} />
+              </div>
             </div>
           ))}
         </div>

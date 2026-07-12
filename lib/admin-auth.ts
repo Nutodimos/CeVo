@@ -99,6 +99,10 @@ export async function loginAdmin(email: string, password?: string): Promise<{ su
     return { success: false, error: "Invalid email or password." };
   }
 
+  if (!admin.password) {
+    return { success: false, error: "Please set up your password first via the link sent to your email." };
+  }
+
   const isValidPassword = await bcrypt.compare(password, admin.password);
   if (!isValidPassword) {
     return { success: false, error: "Invalid email or password." };

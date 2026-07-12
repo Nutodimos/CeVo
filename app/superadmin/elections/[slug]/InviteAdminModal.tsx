@@ -18,6 +18,7 @@ export default function InviteAdminModal({ electionId }: { electionId: string })
 
     const formData = new FormData(e.currentTarget);
     const email = formData.get("email")?.toString();
+    const name = formData.get("name")?.toString();
     const role = formData.get("role")?.toString();
 
     if (!email || !role) {
@@ -26,7 +27,7 @@ export default function InviteAdminModal({ electionId }: { electionId: string })
       return;
     }
 
-    const res = await inviteAdmin(electionId, email, role);
+    const res = await inviteAdmin(electionId, email, role, name);
 
     if (res.success) {
       setMessage(res.message || "Invite sent.");
@@ -65,8 +66,22 @@ export default function InviteAdminModal({ electionId }: { electionId: string })
             
             <form onSubmit={handleInvite} className="p-6 space-y-4">
               <p className="text-sm text-foreground/70 mb-4">
-                Enter the email address of the person you want to invite. If they don't have an account, they will be sent an onboarding link.
+                Enter the details of the person you want to invite. If they don't have an account, they will be sent an onboarding link.
               </p>
+
+              <div>
+                <label htmlFor="name" className="block text-sm font-medium text-foreground/80 mb-1">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  id="name"
+                  name="name"
+                  required
+                  className="input-field w-full text-left"
+                  placeholder="e.g. Jane Doe"
+                />
+              </div>
 
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-foreground/80 mb-1">

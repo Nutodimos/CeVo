@@ -60,7 +60,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
           <span className="text-sm font-medium">{invite.email}</span>
         </div>
 
-        <InviteForm token={token} />
+        <InviteForm token={token} defaultName={invite.name} />
       </div>
     </main>
   );

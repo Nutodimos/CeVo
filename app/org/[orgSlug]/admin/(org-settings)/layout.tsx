@@ -20,6 +20,9 @@ export default async function OrgSettingsLayout({
   const org = await prisma.organisation.findUnique({ where: { slug: orgSlug } });
   if (!org) notFound();
 
+  const user = await prisma.adminUser.findUnique({ where: { id: admin.adminId } });
+  if (!user) redirect("/admin/login");
+
   // Verify access: super_admin or OrgMember
   if (admin.role !== "super_admin") {
     const membership = await prisma.orgMember.findUnique({
@@ -32,6 +35,8 @@ export default async function OrgSettingsLayout({
     <div className="min-h-screen bg-surface-50 flex flex-col md:flex-row">
       <OrgAdminSidebar
         adminEmail={admin.email}
+        adminName={user.name}
+        adminAvatarUrl={user.avatarUrl}
         orgSlug={org.slug}
         orgShortName={org.shortName}
         orgLogoUrl={org.logoUrl}

@@ -21,7 +21,8 @@ export async function extractMatricNumber(imageUrl: string, institutionName?: st
       const contentType = imageResponse.headers.get("content-type");
       if (contentType) mimeType = contentType;
     } else {
-      const localUrl = `http://localhost:${process.env.PORT || 3000}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || `http://localhost:${process.env.PORT || 3000}`;
+      const localUrl = `${baseUrl}${imageUrl.startsWith("/") ? "" : "/"}${imageUrl}`;
       const imageResponse = await fetch(localUrl);
       imageBuffer = await imageResponse.arrayBuffer();
     }

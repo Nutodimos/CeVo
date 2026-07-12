@@ -167,14 +167,16 @@ model Vote {
 // ============================================
 
 model AdminUser {
-  id              String          @id @default(cuid())
-  email           String          @unique
-  password        String
+  id              String               @id @default(cuid())
+  email           String               @unique
+  password        String?
   name            String
-  role            String          @default("reviewer") // reviewer | super_admin (platform-level)
-  createdAt       DateTime        @default(now())
-  elections       ElectionAdmin[] // per-election role assignments
-  orgMemberships  OrgMember[]     // per-org role assignments
+  avatarUrl       String?              // Added for profile photo space
+  role            String               @default("reviewer") // reviewer | super_admin (platform-level)
+  createdAt       DateTime             @default(now())
+  elections       ElectionAdmin[]      // per-election role assignments
+  orgMemberships  OrgMember[]          // per-org role assignments
+  passwordSetupTokens PasswordSetupToken[]
 }
 
 // Deprecated — replaced by Gemini vision API. Safe to drop after next election cycle.
@@ -201,6 +203,7 @@ model ElectionConfig {
 model AdminInvite {
   id             String   @id @default(cuid())
   email          String
+  name           String?  // Added to pre-load admin names
   electionId     String?  // null for org-level invites
   organisationId String?  // set for org-level invites
   role           String   @default("admin")
@@ -224,4 +227,16 @@ model RateLimit {
   ip        String   @id
   attempts  Int      @default(1)
   resetAt   DateTime
+}
+
+model PasswordSetupToken {
+  id         String    @id @default(cuid())
+  token      String    @unique // SHA-256 hash of the raw token, never store raw
+  userId     String
+  user       AdminUser @relation(fields: [userId], references: [id])
+  expiresAt  DateTime
+  usedAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
 }

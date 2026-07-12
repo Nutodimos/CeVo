@@ -46,9 +46,14 @@ export default function AdminLoginPage() {
             </div>
             
             <div>
-              <label className="block text-sm font-semibold text-surface-700 mb-1.5" htmlFor="admin-password">
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-sm font-semibold text-surface-700" htmlFor="admin-password">
+                  Password
+                </label>
+                <a href="/admin/forgot-password" className="text-sm font-medium text-primary-600 hover:text-primary-700">
+                  Forgot password?
+                </a>
+              </div>
               <div className="relative">
                 <input
                   id="admin-password"

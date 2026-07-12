@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { acceptInvite } from "@/app/actions/superadmin";
 
-export default function InviteForm({ token }: { token: string }) {
+export default function InviteForm({ token, defaultName }: { token: string, defaultName?: string | null }) {
   const [state, formAction, isPending] = useActionState(acceptInvite, null);
 
   return (
@@ -18,6 +18,7 @@ export default function InviteForm({ token }: { token: string }) {
           name="name" 
           required 
           placeholder="e.g. Jane Doe"
+          defaultValue={defaultName || ""}
           className="input-field w-full text-left bg-black/20 focus:bg-black/40"
         />
       </div>

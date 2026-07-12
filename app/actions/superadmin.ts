@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import crypto from "crypto";
 import * as bcrypt from "bcryptjs";
 import { logAudit } from "@/lib/audit";
+import { createPasswordSetupToken } from "@/lib/passwordSetupToken";
+import { sendEmail } from "@/lib/email";
 
 // ============================================
 // ELECTION ACTIONS
@@ -52,23 +54,14 @@ export async function createOrganisation(prevState: unknown, formData: FormData)
   const adminPassword = formData.get("adminPassword")?.toString();
 
   if (!name || !shortName || !slug) return { error: "Name, short name, and slug are required" };
-  if (!adminName || !adminEmail || !adminPassword) return { error: "Admin Name, Email, and Password are required" };
+  if (!adminName || !adminEmail) return { error: "Admin Name and Email are required" };
   if (!/^[a-z0-9-]+$/.test(slug)) return { error: "Invalid slug format" };
 
   const existing = await prisma.organisation.findUnique({ where: { slug } });
   if (existing) return { error: "This slug is already taken" };
 
-  const existingAdmin = await prisma.adminUser.findUnique({ where: { email: adminEmail } });
-  if (existingAdmin) return { error: "An admin user with this email already exists" };
-
-  if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z\d]).{8,}$/.test(adminPassword)) {
-    return { error: "Password must be at least 8 characters long, contain an uppercase letter, a lowercase letter, a number, and a special character." };
-  }
-
   try {
-    const hashedPassword = await bcrypt.hash(adminPassword, 10);
-
-    const org = await prisma.$transaction(async (tx) => {
+    const { rawToken, newOrg, isNewAdmin, hasPassword } = await prisma.$transaction(async (tx) => {
       const newOrg = await tx.organisation.create({
         data: {
           name,
@@ -82,27 +75,58 @@ export async function createOrganisation(prevState: unknown, formData: FormData)
         }
       });
 
-      const newAdmin = await tx.adminUser.create({
-        data: {
-          email: adminEmail,
-          name: adminName,
-          password: hashedPassword,
-          role: "reviewer",
-        }
-      });
+      let adminRecord = await tx.adminUser.findUnique({ where: { email: adminEmail } });
+      let isNewAdmin = false;
+
+      if (!adminRecord) {
+        isNewAdmin = true;
+        adminRecord = await tx.adminUser.create({
+          data: {
+            email: adminEmail,
+            name: adminName,
+            password: null,
+            role: "reviewer",
+          }
+        });
+      }
 
       await tx.orgMember.create({
         data: {
           organisationId: newOrg.id,
-          adminUserId: newAdmin.id,
+          adminUserId: adminRecord.id,
           role: "org_admin",
         }
       });
+      
+      const token = (!adminRecord.password) ? await createPasswordSetupToken(adminRecord.id) : null;
 
-      return newOrg;
+      return { 
+        rawToken: token, 
+        newOrg, 
+        isNewAdmin,
+        hasPassword: !!adminRecord.password 
+      };
     });
 
-    await logAudit(admin.adminId, "org.created", { name, slug }, null, org.id);
+    if (rawToken) {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      const resetLink = `${baseUrl}/auth/set-password?token=${rawToken}`;
+      await sendEmail({
+        to: adminEmail,
+        subject: `Welcome to ${name}!`,
+        text: `You have been invited as the administrator for ${name}. Please set your password here: ${resetLink}`,
+        html: `<p>You have been invited as the administrator for <strong>${name}</strong>.</p><p><a href="${resetLink}">Click here to set your password</a></p>`
+      });
+    } else if (!isNewAdmin && hasPassword) {
+      await sendEmail({
+        to: adminEmail,
+        subject: `Added to ${name}`,
+        text: `You have been added as an administrator for ${name}. You can log in using your existing account.`,
+        html: `<p>You have been added as an administrator for <strong>${name}</strong>.</p><p>You can log in using your existing account.</p>`
+      });
+    }
+
+    await logAudit(admin.adminId, "org.created", { name, slug }, null, newOrg.id);
   } catch (error) {
     console.error(error);
     return { error: "Failed to create organisation and admin account" };
@@ -150,6 +174,35 @@ export async function deleteOrganisation(orgId: string) {
   } catch (error: any) {
     console.error("Delete org error:", error);
     return { success: false, error: "Failed to delete organisation. It may have dependent elections." };
+  }
+}
+
+export async function resendOrgAdminInvite(adminUserId: string, orgSlug: string) {
+  const admin = await verifySuperAdminSession();
+  if (!admin) return { success: false, error: "Unauthorized" };
+
+  try {
+    const adminUser = await prisma.adminUser.findUnique({
+      where: { id: adminUserId },
+    });
+    if (!adminUser) return { success: false, error: "Admin user not found" };
+
+    const rawToken = await createPasswordSetupToken(adminUser.id);
+    
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    const resetLink = `${baseUrl}/auth/set-password?token=${rawToken}`;
+    await sendEmail({
+      to: adminUser.email,
+      subject: `Your Admin Invitation`,
+      text: `You have been invited as an org admin. Please set your password here: ${resetLink}`,
+      html: `<p>You have been invited as an org admin.</p><p><a href="${resetLink}">Click here to set your password</a></p>`
+    });
+    
+    await logAudit(admin.adminId, "org.invite_resent", { targetEmail: adminUser.email }, null);
+    return { success: true };
+  } catch (err) {
+    console.error("Resend invite error:", err);
+    return { success: false, error: "Failed to resend invite" };
   }
 }
 
@@ -313,7 +366,7 @@ export async function revertElectionToSetup(electionId: string) {
 // ELECTION ADMIN TEAM MANAGEMENT
 // ============================================
 
-export async function inviteAdmin(electionId: string, email: string, role: string) {
+export async function inviteAdmin(electionId: string, email: string, role: string, name?: string) {
   const admin = await verifySuperAdminSession();
   if (!admin) return { success: false, error: "Unauthorized" };
 
@@ -338,13 +391,21 @@ export async function inviteAdmin(electionId: string, email: string, role: strin
   const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
   await prisma.adminInvite.create({
-    data: { email, electionId, role, token, expiresAt }
+    data: { email, name, electionId, role, token, expiresAt }
   });
 
   await logAudit(admin.adminId, "admin.invited", { email, role }, electionId);
-  console.log(`\n\n[MOCK EMAIL SENT TO ${email}]\nAccept Invite Link: http://localhost:3000/invite/${token}\n\n`);
 
-  return { success: true, message: `Invite sent to ${email}. (Check console for link)` };
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const acceptLink = `${baseUrl}/invite/${token}`;
+  await sendEmail({
+    to: email,
+    subject: `Invitation to manage an election`,
+    text: `You have been invited to manage an election. Accept your invite here: ${acceptLink}`,
+    html: `<p>You have been invited to manage an election.</p><p><a href="${acceptLink}">Click here to accept the invitation</a></p>`
+  });
+
+  return { success: true, message: `Invite sent to ${email}.` };
 }
 
 export async function removeAdmin(electionAdminId: string, electionId: string) {

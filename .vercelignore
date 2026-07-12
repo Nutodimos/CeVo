@@ -1,0 +1,20 @@
+# ============================================
+# Vercel Ignore — files excluded from deploy
+# ============================================
+
+# Dev/debug scripts at root level
+test-db.ts
+test-find.ts
+fix-role.ts
+resolve.sql
+
+# One-off migration scripts
+scratch/
+scripts/
+
+# Large Tesseract OCR data file (unused — migrated to Gemini)
+eng.traineddata
+
+# AI editor config files
+CLAUDE.md
+AGENTS.md

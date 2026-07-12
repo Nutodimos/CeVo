@@ -8,7 +8,6 @@ import { CldUploadWidget } from "next-cloudinary";
 export default function NewOrgPage() {
   const [state, formAction, isPending] = useActionState(createOrganisation, null);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
-  const [showPassword, setShowPassword] = useState(false);
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -107,30 +106,11 @@ export default function NewOrgPage() {
             <input name="adminName" type="text" required className="input-field" placeholder="e.g. John Doe" />
           </div>
           
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4">
             <div>
               <label className="block text-sm font-medium text-foreground/80 mb-1">Admin Email *</label>
               <input name="adminEmail" type="email" required className="input-field" placeholder="e.g. admin@cesa.com" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-foreground/80 mb-1">Admin Password *</label>
-              <div className="relative">
-                <input 
-                  name="adminPassword" 
-                  type={showPassword ? "text" : "password"} 
-                  required 
-                  className="input-field pr-10" 
-                  placeholder="At least 8 characters" 
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/50 hover:text-foreground transition-colors"
-                  tabIndex={-1}
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
+              <p className="text-xs text-foreground/50 mt-1">An invitation link will be sent to this email to set up their password.</p>
             </div>
           </div>
         </div>
