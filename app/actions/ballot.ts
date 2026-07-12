@@ -57,7 +57,7 @@ export async function submitBallot(
   for (const position of positions) {
     const selectedCandidateId = choices[position.id];
     const validCandidate = position.candidates.find(
-      (c) => c.id === selectedCandidateId
+      (c: (typeof positions)[number]["candidates"][number]) => c.id === selectedCandidateId
     );
     if (!validCandidate) {
       return { success: false, error: "Invalid candidate selection detected." };

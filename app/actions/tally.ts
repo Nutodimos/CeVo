@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 type TransactionClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 import { verifyAdminSession } from "@/lib/admin-auth";
 import { revalidatePath } from "next/cache";
@@ -20,7 +21,7 @@ export async function runTallyJob(electionSlug: string) {
     where: {
       electionId,
       status: "verified",
-      NOT: { choices: { equals: Prisma.DbNull } },
+      choices: { not: Prisma.AnyNull },
     },
   });
 
@@ -76,7 +77,7 @@ export async function runTallyJob(electionSlug: string) {
           where: { id: pv.id },
           data: {
             status: "archived",
-            choices: Prisma.DbNull, // Critical: this severs the ballot from the identity
+            choices: Prisma.DbNull, // Severs ballot from identity
           },
         });
 
