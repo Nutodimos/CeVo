@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@prisma/client";
+type TransactionClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 import { verifySuperAdminSession } from "@/lib/admin-auth";
 import { redirect } from "next/navigation";
 import crypto from "crypto";
@@ -62,7 +62,7 @@ export async function createOrganisation(prevState: unknown, formData: FormData)
   if (existing) return { error: "This slug is already taken" };
 
   try {
-    const { rawToken, newOrg, isNewAdmin, hasPassword } = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const { rawToken, newOrg, isNewAdmin, hasPassword } = await prisma.$transaction(async (tx: TransactionClient) => {
       const newOrg = await tx.organisation.create({
         data: {
           name,
@@ -278,7 +278,7 @@ export async function cloneElection(sourceId: string, newName: string) {
   }
 
   try {
-    const newElection = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const newElection = await prisma.$transaction(async (tx: TransactionClient) => {
       const el = await tx.election.create({
         data: {
           name: newName,
@@ -469,7 +469,7 @@ export async function acceptInvite(prevState: unknown, formData: FormData) {
   const hashedPassword = await bcrypt.hash(password, 10);
 
   try {
-    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    await prisma.$transaction(async (tx: TransactionClient) => {
       const user = await tx.adminUser.create({
         data: {
           email: invite.email,

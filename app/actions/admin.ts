@@ -2,7 +2,7 @@
 
 import { loginAdmin, destroyAdminSession, verifyAdminSession } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
-import type { Prisma } from "@prisma/client";
+type TransactionClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { createPasswordSetupToken, validatePasswordSetupToken } from "@/lib/passwordSetupToken";
@@ -179,7 +179,7 @@ export async function setPassword(prevState: unknown, formData: FormData) {
   const hashedPassword = await bcrypt.hash(password, 10);
 
   try {
-    const user = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    const user = await prisma.$transaction(async (tx: TransactionClient) => {
       const updatedUser = await tx.adminUser.update({
         where: { id: tokenRecord.userId },
         data: { password: hashedPassword }

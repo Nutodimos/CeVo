@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
+type TransactionClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 import { verifyAdminSession } from "@/lib/admin-auth";
 import { revalidatePath } from "next/cache";
 import { getElectionBySlug, requireElectionId } from "@/lib/election-context";
@@ -34,7 +34,7 @@ export async function runTallyJob(electionSlug: string) {
   for (const pv of pendingVotes) {
     try {
       // Execute the row in a single transaction
-      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await prisma.$transaction(async (tx: TransactionClient) => {
         // a) Safety check: has the user already voted?
         const voter = await tx.voterRoll.findUnique({
           where: { electionId_matricNumber: { electionId, matricNumber: pv.matricNumber } },
