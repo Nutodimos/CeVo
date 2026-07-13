@@ -54,7 +54,7 @@ export default function AddOrgAdminModal({ orgId, orgSlug }: { orgId: string, or
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-fade-in">
           <div className="bg-card border border-white/10 rounded-2xl p-6 w-full max-w-md shadow-2xl relative animate-scale-in">
             <button 
               onClick={handleClose}
