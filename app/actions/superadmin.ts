@@ -251,6 +251,30 @@ export async function inviteOrgAdmin(orgId: string, email: string, role: string,
   return { success: true, message: `Invite sent to ${email}.` };
 }
 
+export async function removeOrgAdmin(orgId: string, adminUserId: string) {
+  const admin = await verifySuperAdminSession();
+  if (!admin) return { success: false, error: "Unauthorized" };
+
+  try {
+    const count = await prisma.orgMember.count({ where: { organisationId: orgId, role: "org_admin" } });
+    const target = await prisma.orgMember.findUnique({ where: { organisationId_adminUserId: { organisationId: orgId, adminUserId } } });
+    
+    if (target?.role === "org_admin" && count <= 1) {
+      return { success: false, error: "Cannot remove the last organization admin." };
+    }
+
+    await prisma.orgMember.delete({
+      where: { organisationId_adminUserId: { organisationId: orgId, adminUserId } }
+    });
+    
+    await logAudit(admin.adminId, "org.admin_removed", { targetId: adminUserId }, null, orgId);
+    return { success: true };
+  } catch (err) {
+    console.error("Remove org admin error:", err);
+    return { success: false, error: "Failed to remove member" };
+  }
+}
+
 
 // ============================================
 // ELECTION ACTIONS (now org-scoped)

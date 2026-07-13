@@ -1,10 +1,11 @@
 import { prisma } from "@/lib/prisma";
+import { ArrowLeft, Users, CheckCircle, Archive, Plus, Play, Settings, Ban } from "lucide-react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Users, CheckCircle, Archive, Plus, Play, Settings, Ban } from "lucide-react";
 import OrgActions from "./OrgActions";
 import ResendInviteButton from "./ResendInviteButton";
 import AddOrgAdminModal from "./AddOrgAdminModal";
+import RemoveOrgAdminButton from "./RemoveOrgAdminButton";
 
 export default async function OrgDetailPage({ params }: { params: Promise<{ orgSlug: string }> }) {
   const resolvedParams = await params;
@@ -120,7 +121,10 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ orgS
                 <span className="text-xs font-medium px-2 py-1 rounded bg-white/5 border border-white/10 capitalize">
                   {m.role.replace("_", " ")}
                 </span>
-                <ResendInviteButton adminUserId={m.admin.id} orgSlug={orgSlug} />
+                <div className="flex items-center gap-2">
+                  <ResendInviteButton adminUserId={m.admin.id} orgSlug={orgSlug} />
+                  <RemoveOrgAdminButton orgId={org.id} adminUserId={m.admin.id} />
+                </div>
               </div>
             </div>
           ))}
