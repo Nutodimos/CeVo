@@ -99,7 +99,7 @@ export async function createOrganisation(prevState: unknown, formData: FormData)
         }
       });
       
-      const token = (!adminRecord.password) ? await createPasswordSetupToken(adminRecord.id) : null;
+      const token = (!adminRecord.password) ? await createPasswordSetupToken(adminRecord.id, tx) : null;
 
       return { 
         rawToken: token, 
@@ -205,6 +205,50 @@ export async function resendOrgAdminInvite(adminUserId: string, orgSlug: string)
     console.error("Resend invite error:", err);
     return { success: false, error: "Failed to resend invite" };
   }
+}
+
+export async function inviteOrgAdmin(orgId: string, email: string, role: string, name?: string) {
+  const admin = await verifySuperAdminSession();
+  if (!admin) return { success: false, error: "Unauthorized" };
+
+  email = email.toLowerCase().trim();
+
+  const existingUser = await prisma.adminUser.findUnique({ where: { email } });
+
+  if (existingUser) {
+    try {
+      await prisma.orgMember.create({
+        data: { organisationId: orgId, adminUserId: existingUser.id, role }
+      });
+      await logAudit(admin.adminId, "org.admin_added", { email, role, type: "direct" }, null, orgId);
+      return { success: true, message: `Added ${existingUser.name} directly to the organisation.` };
+    } catch (e: unknown) {
+      if (typeof e === 'object' && e !== null && 'code' in e && (e as {code: string}).code === 'P2002') {
+        return { success: false, error: "User is already an admin for this organisation." };
+      }
+      return { success: false, error: "Failed to add org admin" };
+    }
+  }
+
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+
+  await prisma.adminInvite.create({
+    data: { email, name, organisationId: orgId, role, token, expiresAt }
+  });
+
+  await logAudit(admin.adminId, "org.admin_invited", { email, role }, null, orgId);
+
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const acceptLink = `${baseUrl}/invite/${token}`;
+  await sendEmail({
+    to: email,
+    subject: `Invitation to manage an organisation`,
+    text: `You have been invited to manage an organisation on CeVo. Accept your invite here: ${acceptLink}`,
+    html: `<p>You have been invited to manage an organisation on CeVo.</p><p><a href="${acceptLink}">Click here to accept the invitation</a></p>`
+  });
+
+  return { success: true, message: `Invite sent to ${email}.` };
 }
 
 

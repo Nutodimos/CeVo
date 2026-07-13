@@ -1,9 +1,13 @@
 import { prisma } from "./prisma";
 import crypto from "crypto";
 
-export async function createPasswordSetupToken(userId: string): Promise<string> {
+type TransactionClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+
+export async function createPasswordSetupToken(userId: string, tx?: TransactionClient): Promise<string> {
+  const db = tx || prisma;
+  
   // Invalidate any existing unused tokens for this user
-  await prisma.passwordSetupToken.updateMany({
+  await db.passwordSetupToken.updateMany({
     where: { 
       userId, 
       usedAt: null, 
@@ -18,7 +22,7 @@ export async function createPasswordSetupToken(userId: string): Promise<string> 
   const hashedToken = crypto.createHash("sha256").update(rawToken).digest("hex");
   const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours from now
 
-  await prisma.passwordSetupToken.create({
+  await db.passwordSetupToken.create({
     data: {
       token: hashedToken,
       userId,

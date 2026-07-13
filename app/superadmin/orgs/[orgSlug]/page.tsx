@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, Users, CheckCircle, Archive, Plus, Play, Settings, Ban } from "lucide-react";
 import OrgActions from "./OrgActions";
 import ResendInviteButton from "./ResendInviteButton";
+import AddOrgAdminModal from "./AddOrgAdminModal";
 
 export default async function OrgDetailPage({ params }: { params: Promise<{ orgSlug: string }> }) {
   const resolvedParams = await params;
@@ -102,9 +103,12 @@ export default async function OrgDetailPage({ params }: { params: Promise<{ orgS
 
       {/* Members */}
       <div className="bg-card border border-white/10 rounded-xl p-6">
-        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Users className="w-5 h-5" /> Org Members ({org.members.length})
-        </h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <Users className="w-5 h-5" /> Org Members ({org.members.length})
+          </h3>
+          <AddOrgAdminModal orgId={org.id} orgSlug={org.slug} />
+        </div>
         <div className="divide-y divide-white/10">
           {org.members.map((m) => (
             <div key={m.id} className="flex items-center justify-between py-3">
