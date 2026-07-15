@@ -8,11 +8,14 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "CESA Election Portal",
+  title: {
+    template: "%s | CeVo",
+    default: "CeVo - Secure Election Portal",
+  },
   description:
-    "Official voting portal for the Computer Engineering Students Association. Cast your vote securely and anonymously.",
-  keywords: ["CESA", "election", "voting", "student association"],
-  robots: "noindex, nofollow",
+    "Official secure and anonymous voting portal.",
+  keywords: ["CeVo", "election", "voting", "portal"],
+  robots: "index, follow",
 };
 
 import { Toaster } from 'react-hot-toast';

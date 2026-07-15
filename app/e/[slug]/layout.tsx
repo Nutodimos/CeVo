@@ -1,6 +1,23 @@
 import { ReactNode } from "react";
 import { getElectionBySlug } from "@/lib/election-context";
 import { notFound } from "next/navigation";
+import { Metadata } from "next";
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  try {
+    const resolvedParams = await params;
+    const election = await getElectionBySlug(resolvedParams.slug);
+    
+    return {
+      title: election.name,
+      description: `Official voting portal for ${election.name}`,
+    };
+  } catch (e) {
+    return {
+      title: "Election Not Found",
+    };
+  }
+}
 
 export default async function ElectionVoterLayout({
   children,
