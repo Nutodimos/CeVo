@@ -3,8 +3,8 @@ import { toastConfirm } from '@/lib/toast-dialogs';
 import toast from 'react-hot-toast';
 
 import { useState, useRef } from "react";
-import { Upload, X, AlertTriangle, FileText, Trash2, Search, Download } from "lucide-react";
-import { importVoterRoll, deleteVoter } from "@/app/actions/setup";
+import { Upload, X, AlertTriangle, FileText, Trash2, Search, Download, ChevronLeft, ChevronRight } from "lucide-react";
+import { importVoterRoll, deleteVoter, deleteAllVoters } from "@/app/actions/setup";
 import { useRouter } from "next/navigation";
 
 type Voter = {
@@ -38,6 +38,8 @@ export default function VoterRollManager({
   const [importMode, setImportMode] = useState<"replace" | "append">("replace");
   const [isPending, setIsPending] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 50;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
@@ -87,13 +89,12 @@ export default function VoterRollManager({
         
         const cols = matches.map(m => m.replace(/^"|"$/g, '').trim());
         const matricNumber = cols[0] || "";
-        const name = cols[1] || "";
+        const name = cols[1] || "Unknown";
         const level = cols[2] || "";
 
         const errors: string[] = [];
         
         if (!matricNumber) errors.push("Missing Matric Number");
-        if (!name) errors.push("Missing Name");
         if (!level) errors.push("Missing Level (required)"); // Enforced Level
         
         if (matricNumber && seenMatrics.has(matricNumber.toLowerCase())) {
@@ -156,10 +157,35 @@ export default function VoterRollManager({
     setIsPending(false);
   };
 
+  const handleDeleteAll = async () => {
+    if (isLocked) return;
+    if (!(await toastConfirm("Are you sure you want to delete ALL registered voters? This cannot be undone."))) return;
+    
+    setIsPending(true);
+    const res = await deleteAllVoters(electionId);
+    if (res.success) {
+      setVoters([]);
+      router.refresh();
+      toast.success("All voters deleted successfully");
+    } else {
+      toast.error(res.error || "Failed to delete voters");
+    }
+    setIsPending(false);
+  };
+
   const filteredVoters = voters.filter(v => 
     v.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
     v.matricNumber.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const totalPages = Math.ceil(filteredVoters.length / ITEMS_PER_PAGE);
+  const validCurrentPage = Math.max(1, Math.min(currentPage, totalPages || 1));
+  const paginatedVoters = filteredVoters.slice((validCurrentPage - 1) * ITEMS_PER_PAGE, validCurrentPage * ITEMS_PER_PAGE);
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchTerm(e.target.value);
+    setCurrentPage(1);
+  };
 
   return (
     <div className="space-y-6">
@@ -325,15 +351,27 @@ export default function VoterRollManager({
             <h2 className="text-lg font-semibold text-surface-900">Current Voters</h2>
             <p className="text-sm text-surface-500">{voters.length} registered voters</p>
           </div>
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" />
-            <input 
-              type="text" 
-              placeholder="Search voters..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 pr-4 py-2 border border-surface-200 rounded-lg text-sm w-full md:w-64 focus:outline-none focus:border-primary-400"
-            />
+          <div className="flex items-center gap-3">
+            {!isLocked && voters.length > 0 && (
+              <button
+                onClick={handleDeleteAll}
+                disabled={isPending}
+                className="btn-secondary py-2 text-danger-600 border-danger-200 hover:bg-danger-50 flex items-center gap-2 text-sm disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete All
+              </button>
+            )}
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-surface-400" />
+              <input 
+                type="text" 
+                placeholder="Search voters..." 
+                value={searchTerm}
+                onChange={handleSearchChange}
+                className="pl-9 pr-4 py-2 border border-surface-200 rounded-lg text-sm w-full md:w-64 focus:outline-none focus:border-primary-400"
+              />
+            </div>
           </div>
         </div>
         
@@ -349,14 +387,14 @@ export default function VoterRollManager({
               </tr>
             </thead>
             <tbody className="divide-y divide-surface-100">
-              {filteredVoters.length === 0 ? (
+              {paginatedVoters.length === 0 ? (
                 <tr>
                   <td colSpan={isLocked ? 4 : 5} className="px-6 py-8 text-center text-surface-500">
                     No voters found.
                   </td>
                 </tr>
               ) : (
-                filteredVoters.slice(0, 100).map((voter) => (
+                paginatedVoters.map((voter) => (
                   <tr key={voter.id} className="hover:bg-surface-50/50 transition-colors">
                     <td className="px-6 py-3 font-mono text-xs">{voter.matricNumber}</td>
                     <td className="px-6 py-3 font-medium text-surface-900">{voter.name}</td>
@@ -383,16 +421,33 @@ export default function VoterRollManager({
                   </tr>
                 ))
               )}
-              {filteredVoters.length > 100 && (
-                <tr>
-                  <td colSpan={isLocked ? 4 : 5} className="px-6 py-3 text-center text-surface-500 text-xs bg-surface-50">
-                    ... and {filteredVoters.length - 100} more rows
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>
+        
+        {totalPages > 1 && (
+          <div className="p-4 border-t border-surface-100 flex items-center justify-between bg-surface-50">
+            <p className="text-sm text-surface-500">
+              Showing <span className="font-medium text-surface-900">{(validCurrentPage - 1) * ITEMS_PER_PAGE + 1}</span> to <span className="font-medium text-surface-900">{Math.min(validCurrentPage * ITEMS_PER_PAGE, filteredVoters.length)}</span> of <span className="font-medium text-surface-900">{filteredVoters.length}</span> results
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={validCurrentPage === 1}
+                className="p-1 rounded border border-surface-200 text-surface-600 hover:bg-surface-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={validCurrentPage === totalPages}
+                className="p-1 rounded border border-surface-200 text-surface-600 hover:bg-surface-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

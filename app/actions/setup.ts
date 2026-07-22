@@ -105,6 +105,22 @@ export async function deleteVoter(electionId: string, voterId: string) {
   }
 }
 
+export async function deleteAllVoters(electionId: string) {
+  const access = await verifySetupAccess(electionId);
+  if (!access || access.election.status !== "setup") return { success: false, error: "Unauthorized or locked" };
+
+  try {
+    const result = await prisma.voterRoll.deleteMany({
+      where: { electionId }
+    });
+    await logAudit(access.admin.adminId, "voter.deleted_all", { count: result.count }, electionId);
+    return { success: true };
+  } catch (err: any) {
+    console.error("deleteAllVoters error:", err);
+    return { success: false, error: "Failed to delete all voters." };
+  }
+}
+
 export async function createPosition(electionId: string, title: string, required: boolean) {
   const access = await verifySetupAccess(electionId);
   if (!access || access.election.status !== "setup") return { success: false, error: "Unauthorized or locked" };
