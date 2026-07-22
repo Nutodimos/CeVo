@@ -15,6 +15,38 @@ export async function approveVote(pendingVoteId: string, electionSlug: string) {
   const electionId = electionRecord.id;
 
   try {
+    // Find the pending vote to get details
+    const pendingVote = await prisma.pendingVote.findUnique({
+      where: { id: pendingVoteId, electionId }
+    });
+
+    if (!pendingVote) {
+      throw new Error("Pending vote not found");
+    }
+
+    // Check if voter roll exists
+    const voterRoll = await prisma.voterRoll.findUnique({
+      where: {
+        electionId_matricNumber: {
+          electionId,
+          matricNumber: pendingVote.matricNumber
+        }
+      }
+    });
+
+    // If no voter roll exists, this is a provisional ballot. Register them.
+    if (!voterRoll) {
+      await prisma.voterRoll.create({
+        data: {
+          electionId,
+          matricNumber: pendingVote.matricNumber,
+          name: pendingVote.geminiName || "Provisional Voter",
+          level: "Provisional",
+          hasVoted: false, // The tally job will mark this as true
+        }
+      });
+    }
+
     // Defense in depth: verify the vote belongs to this election
     await prisma.pendingVote.update({
       where: { id: pendingVoteId, electionId },

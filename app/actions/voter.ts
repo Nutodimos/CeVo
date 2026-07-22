@@ -10,6 +10,8 @@ import { getElectionStatus } from "@/lib/election";
 
 export type VoterCheckResult = {
   success: boolean;
+  status?: "not_found";
+  matricNumber?: string;
   error?: string;
 };
 
@@ -60,7 +62,8 @@ export async function checkMatricNumber(
   if (!voter) {
     return {
       success: false,
-      error: "We couldn't verify this matric number. Please check and try again.",
+      status: "not_found",
+      matricNumber,
     };
   }
 
@@ -82,6 +85,49 @@ export async function checkMatricNumber(
     electionSlug,
     phase: "capture",
   });
+  redirect(`/e/${electionSlug}/capture`);
+}
+
+export async function startProvisionalVote(
+  matricNumber: string,
+  electionId: string,
+  electionSlug: string
+): Promise<{ success: boolean; error?: string }> {
+  // Check election window
+  const election = await getElectionStatus(electionId);
+  if (!election.isOpen) {
+    return { success: false, error: "Voting is closed." };
+  }
+
+  // Rate limit
+  const headersList = await headers();
+  const clientIP = getClientIP(headersList);
+  const rateLimitResult = checkRateLimit(`provisional:${clientIP}`);
+  if (!rateLimitResult.allowed) {
+    return { success: false, error: "Too many attempts. Please try again later." };
+  }
+
+  // Check for existing pending vote to prevent spam
+  const existingPending = await prisma.pendingVote.findFirst({
+    where: {
+      electionId,
+      matricNumber,
+      status: { notIn: ["rejected", "flagged_invalid"] }
+    }
+  });
+
+  if (existingPending) {
+    return { success: false, error: "You already have a provisional vote under review." };
+  }
+
+  // Create session
+  await createVoterSession({
+    matricNumber,
+    electionId,
+    electionSlug,
+    phase: "capture",
+  });
+  
   redirect(`/e/${electionSlug}/capture`);
 }
 

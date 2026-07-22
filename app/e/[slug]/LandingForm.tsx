@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
-import { checkMatricNumber, type VoterCheckResult } from "@/app/actions/voter";
+import { useActionState, useTransition } from "react";
+import { checkMatricNumber, startProvisionalVote, type VoterCheckResult } from "@/app/actions/voter";
 import { UserCircle } from "lucide-react";
 
 export default function LandingForm({ electionId, electionSlug, orgLogoUrl }: { electionId: string, electionSlug: string, orgLogoUrl?: string | null }) {
@@ -9,6 +9,18 @@ export default function LandingForm({ electionId, electionSlug, orgLogoUrl }: { 
     checkMatricNumber,
     null
   );
+  const [isProvisionalPending, startTransition] = useTransition();
+
+  const handleProvisional = () => {
+    if (state?.matricNumber) {
+      startTransition(async () => {
+        const res = await startProvisionalVote(state.matricNumber!, electionId, electionSlug);
+        if (res?.error) {
+          alert(res.error);
+        }
+      });
+    }
+  };
 
   return (
     <div
@@ -97,21 +109,54 @@ export default function LandingForm({ electionId, electionSlug, orgLogoUrl }: { 
             </div>
           )}
 
-          <button
-            type="submit"
-            className="btn-primary"
-            disabled={isPending}
-            style={{ width: "100%" }}
-          >
-            {isPending ? (
-              <>
-                <div className="spinner" />
-                <span>Verifying...</span>
-              </>
-            ) : (
-              <span>Continue</span>
-            )}
-          </button>
+          {state?.status === "not_found" && (
+            <div
+              className="animate-slide-down"
+              style={{
+                padding: "1rem",
+                background: "rgba(245, 158, 11, 0.12)",
+                border: "1px solid rgba(245, 158, 11, 0.25)",
+                borderRadius: "0.75rem",
+                color: "#fcd34d",
+                fontSize: "0.875rem",
+                marginBottom: "1.25rem",
+                textAlign: "left",
+                lineHeight: 1.5,
+              }}
+            >
+              <strong>Not found on the Voter Roll</strong>
+              <p style={{ marginTop: "0.5rem" }}>
+                We couldn&apos;t verify your matriculation number. If you are a legitimate student, you can cast a Provisional Ballot. Your ID will be manually verified by the committee before your vote is counted.
+              </p>
+              <button
+                type="button"
+                onClick={handleProvisional}
+                disabled={isProvisionalPending}
+                className="btn-primary"
+                style={{ width: "100%", marginTop: "1rem", backgroundColor: "#d97706" }}
+              >
+                {isProvisionalPending ? "Starting..." : "Cast Provisional Ballot"}
+              </button>
+            </div>
+          )}
+
+          {state?.status !== "not_found" && (
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={isPending}
+              style={{ width: "100%" }}
+            >
+              {isPending ? (
+                <>
+                  <div className="spinner" />
+                  <span>Verifying...</span>
+                </>
+              ) : (
+                <span>Continue</span>
+              )}
+            </button>
+          )}
         </form>
       </div>
 

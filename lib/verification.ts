@@ -64,10 +64,17 @@ export async function processVoteVerification(pendingVoteId: string) {
   // ─── Routing table ───────────────────────────────────────────────────────
   let newStatus: string;
   let reviewNote: string | null = null;
+  let nameUpdated = false;
 
   if (!documentValid) {
     newStatus  = "pending_review";
     reviewNote = `Gemini flagged this as not a valid ${pendingVote.election.organisation.name} document.`;
+  } else if (!voterRollName) {
+    newStatus  = "pending_review";
+    reviewNote = `Provisional Ballot: Voter is not on the roll. Extracted Name: "${extractedName || "Could not read"}"`;
+  } else if (matricOk && confidence === "high" && voterRollName.toLowerCase() === "unknown" && extractedName) {
+    newStatus = "verified";
+    nameUpdated = true;
   } else if (matricOk && confidence === "high" && nameResult === "strong") {
     newStatus = "verified";
   } else if (matricOk && (confidence === "low" || nameResult === "weak")) {
@@ -95,4 +102,12 @@ export async function processVoteVerification(pendingVoteId: string) {
       reviewNote:       reviewNote,
     },
   });
+
+  // If auto-verified and the original name was unknown, update the VoterRoll with the real name
+  if (nameUpdated && extractedName && pendingVote.voterRoll) {
+    await prisma.voterRoll.update({
+      where: { id: pendingVote.voterRoll.id },
+      data: { name: extractedName }
+    });
+  }
 }
