@@ -121,7 +121,7 @@ export async function deleteAllVoters(electionId: string) {
   }
 }
 
-export async function createPosition(electionId: string, title: string, required: boolean) {
+export async function createPosition(electionId: string, title: string, required: boolean, allowedLevel?: string) {
   const access = await verifySetupAccess(electionId);
   if (!access || access.election.status !== "setup") return { success: false, error: "Unauthorized or locked" };
 
@@ -133,7 +133,7 @@ export async function createPosition(electionId: string, title: string, required
     const order = maxOrderPos ? maxOrderPos.order + 1 : 0;
 
     await prisma.position.create({
-      data: { electionId, title, required, order }
+      data: { electionId, title, required, allowedLevel: allowedLevel || null, order }
     });
     
     await logAudit(access.admin.adminId, "position.created", { title, required }, electionId);
@@ -143,14 +143,14 @@ export async function createPosition(electionId: string, title: string, required
   }
 }
 
-export async function updatePosition(electionId: string, positionId: string, title: string, required: boolean) {
+export async function updatePosition(electionId: string, positionId: string, title: string, required: boolean, allowedLevel?: string) {
   const access = await verifySetupAccess(electionId);
   if (!access || access.election.status !== "setup") return { success: false, error: "Unauthorized or locked" };
 
   try {
     await prisma.position.update({
       where: { id: positionId, electionId },
-      data: { title, required }
+      data: { title, required, allowedLevel: allowedLevel || null }
     });
     await logAudit(access.admin.adminId, "position.updated", { positionId, title, required }, electionId);
     return { success: true };

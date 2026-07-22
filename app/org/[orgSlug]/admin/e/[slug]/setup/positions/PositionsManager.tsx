@@ -13,6 +13,7 @@ type Position = {
   id: string;
   title: string;
   required: boolean;
+  allowedLevel: string | null;
   order: number;
   _count: { candidates: number };
 };
@@ -36,6 +37,7 @@ export default function PositionsManager({
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newRequired, setNewRequired] = useState(true);
+  const [newAllowedLevel, setNewAllowedLevel] = useState("");
   const router = useRouter();
 
   const handleDragEnd = async (result: DropResult) => {
@@ -61,10 +63,11 @@ export default function PositionsManager({
     if (!newTitle.trim() || isLocked) return;
 
     setIsPending(true);
-    const res = await createPosition(electionId, newTitle, newRequired);
+    const res = await createPosition(electionId, newTitle, newRequired, newAllowedLevel.trim());
     if (res.success) {
       setNewTitle("");
       setNewRequired(true);
+      setNewAllowedLevel("");
       setIsAdding(false);
       router.refresh();
       // Optimistic update would be better, but refresh is simpler for now
@@ -81,9 +84,9 @@ export default function PositionsManager({
     if (!editingPos || !editingPos.title.trim() || isLocked) return;
 
     setIsPending(true);
-    const res = await updatePosition(electionId, editingPos.id, editingPos.title, editingPos.required);
+    const res = await updatePosition(electionId, editingPos.id, editingPos.title, editingPos.required, editingPos.allowedLevel || undefined);
     if (res.success) {
-      setPositions(positions.map(p => p.id === editingPos.id ? { ...p, title: editingPos.title, required: editingPos.required } : p));
+      setPositions(positions.map(p => p.id === editingPos.id ? { ...p, title: editingPos.title, required: editingPos.required, allowedLevel: editingPos.allowedLevel } : p));
       setEditingPos(null);
       router.refresh();
     } else {
@@ -153,6 +156,17 @@ export default function PositionsManager({
               />
             </div>
             <div>
+              <label className="block text-sm font-medium text-surface-700 mb-1">Restrict to Level (Optional)</label>
+              <input 
+                type="text" 
+                value={newAllowedLevel}
+                onChange={(e) => setNewAllowedLevel(e.target.value)}
+                className="input-field"
+                placeholder="e.g. 100L"
+              />
+              <p className="text-xs text-surface-500 mt-1">Only voters with this level can vote for this position. Leave blank for all levels.</p>
+            </div>
+            <div>
               <label className="flex items-center gap-2 text-sm text-surface-700 cursor-pointer">
                 <input 
                   type="checkbox" 
@@ -205,6 +219,13 @@ export default function PositionsManager({
                                 autoFocus
                                 className="input-field py-2"
                               />
+                              <input 
+                                type="text" 
+                                value={editingPos.allowedLevel || ""}
+                                onChange={(e) => setEditingPos({...editingPos, allowedLevel: e.target.value})}
+                                placeholder="Restrict to Level (e.g. 100L)"
+                                className="input-field py-2"
+                              />
                               <label className="flex items-center gap-2 text-sm text-surface-700 cursor-pointer">
                                 <input 
                                   type="checkbox" 
@@ -231,6 +252,7 @@ export default function PositionsManager({
                               <h3 className="font-semibold text-surface-900 flex items-center gap-2">
                                 {pos.title}
                                 {!pos.required && <span className="text-[10px] uppercase tracking-wider bg-surface-100 text-surface-500 px-1.5 py-0.5 rounded font-bold">Optional</span>}
+                                {pos.allowedLevel && <span className="text-[10px] uppercase tracking-wider bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-bold">Level: {pos.allowedLevel}</span>}
                               </h3>
                               <div className="text-sm text-surface-500 mt-1 flex items-center gap-1.5">
                                 <Users className="w-4 h-4" />

@@ -10,8 +10,20 @@ export default async function BallotPage() {
     redirect(`/e/${session?.electionSlug || "cesa-2526"}`);
   }
 
+  // Fetch the voter record to get their level
+  const voter = await prisma.voterRoll.findUnique({
+    where: {
+      electionId_matricNumber: {
+        electionId: session.electionId,
+        matricNumber: session.matricNumber,
+      },
+    },
+  });
+
+  const voterLevel = voter?.level;
+
   // Fetch all positions with candidates, ordered
-  const positions = await prisma.position.findMany({
+  let positions = await prisma.position.findMany({
     where: { electionId: session.electionId },
     orderBy: { order: "asc" },
     include: {
@@ -20,6 +32,21 @@ export default async function BallotPage() {
       },
     },
   });
+
+  // Helper to normalize levels: "100L", "100", "100 Level" -> "100"
+  const normalizeLevel = (lvl: string) => lvl.toUpperCase().replace(/L|LEVEL|\s/g, "");
+
+  // Filter positions if the voter is fully registered and has a level
+  if (voterLevel) {
+    const normalizedVoterLevel = normalizeLevel(voterLevel);
+    positions = positions.filter((pos) => {
+      if (!pos.allowedLevel) return true; // Global position
+      const normalizedAllowedLevel = normalizeLevel(pos.allowedLevel);
+      return normalizedVoterLevel === normalizedAllowedLevel;
+    });
+  }
+  // If voterLevel is null (provisional ballot), they see all positions.
+  // Their vote is manually reviewed by the admin, who can verify their selections.
 
   return (
     <main
