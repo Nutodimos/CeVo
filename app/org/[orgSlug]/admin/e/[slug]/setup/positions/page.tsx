@@ -21,7 +21,7 @@ export default async function PositionsSetupPage({ params }: { params: Promise<{
   });
 
   return (
-    <div className="p-8 max-w-4xl mx-auto animate-fade-in-up">
+    <div className="px-4 py-6 md:p-8 max-w-4xl mx-auto animate-fade-in-up">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-surface-900 mb-2">Positions</h1>
         <p className="text-surface-600">

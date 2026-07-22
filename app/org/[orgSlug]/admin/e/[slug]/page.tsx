@@ -59,7 +59,7 @@ export default async function AdminDashboard({ params }: { params: Promise<{ org
     ];
 
     return (
-      <div className="p-8">
+      <div className="px-4 py-6 md:p-8">
         <div className="max-w-3xl mx-auto">
           <div className="flex items-center justify-end mb-4">
             {isSuperAdmin && <DeleteElectionButton electionId={electionId} orgSlug={orgSlug} />}
@@ -78,7 +78,7 @@ export default async function AdminDashboard({ params }: { params: Promise<{ org
   // Live Dashboard
   if (election.status === "active") {
     return (
-      <div className="p-8 pb-0">
+      <div className="px-4 py-6 md:p-8 md:pb-0">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-end mb-4">
             {isSuperAdmin && <DeleteElectionButton electionId={electionId} orgSlug={orgSlug} />}
@@ -136,7 +136,7 @@ export default async function AdminDashboard({ params }: { params: Promise<{ org
 
   return (
     <>
-      <div className="p-8 pb-0">
+      <div className="px-4 py-6 md:p-8 md:pb-0">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-end mb-4">
             {isSuperAdmin && <DeleteElectionButton electionId={electionId} orgSlug={orgSlug} />}
