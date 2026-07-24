@@ -1,66 +1,53 @@
-import { writeFile, mkdir, unlink } from "fs/promises";
-import path from "path";
-
-const UPLOAD_DIR = path.resolve(process.cwd(), "public", "uploads");
+const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+const UPLOAD_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
 
 /**
- * Upload a captured card photo to storage.
- * Currently saves to local filesystem (public/uploads/).
- * Swap this implementation for Vercel Blob or S3 in production.
+ * Upload a captured card photo to Cloudinary.
+ * Uses the unsigned upload REST API with the same cloud name and upload preset
+ * already configured for candidate photos.
  */
 export async function uploadCardPhoto(
   buffer: Buffer,
   filename: string
 ): Promise<string> {
-  // Ensure upload directory exists
-  await mkdir(UPLOAD_DIR, { recursive: true });
-
-  const filePath = path.resolve(UPLOAD_DIR, filename);
-
-  // Path traversal guard — ensure resolved path stays inside UPLOAD_DIR
-  if (!filePath.startsWith(UPLOAD_DIR + path.sep) && filePath !== UPLOAD_DIR) {
-    throw new Error("Invalid filename — path traversal detected");
+  if (!CLOUD_NAME || !UPLOAD_PRESET) {
+    throw new Error(
+      "Missing Cloudinary config: NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME and NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET must be set."
+    );
   }
 
-  await writeFile(filePath, buffer);
+  const formData = new FormData();
+  const blob = new Blob([new Uint8Array(buffer)], { type: "image/jpeg" });
+  formData.append("file", blob, filename);
+  formData.append("upload_preset", UPLOAD_PRESET);
+  formData.append("folder", "card-photos");
 
-  // Return the public URL path
-  return `/uploads/${filename}`;
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
+    { method: "POST", body: formData }
+  );
+
+  if (!res.ok) {
+    const body = await res.text();
+    console.error("Cloudinary upload failed:", res.status, body);
+    throw new Error("Failed to upload card photo to Cloudinary");
+  }
+
+  const data = await res.json();
+  return data.secure_url;
 }
 
 /**
- * Delete a card photo from storage.
+ * Delete a card photo from Cloudinary.
+ * Note: Unsigned deletion is not supported by Cloudinary, so this is a
+ * best-effort no-op. Photos in the "card-photos" folder can be cleaned up
+ * via the Cloudinary dashboard or a signed server-side SDK if needed.
  */
 export async function deleteCardPhoto(url: string): Promise<boolean> {
-  try {
-    // url looks like "/uploads/filename.jpg"
-    // Strip only the leading "/uploads/" prefix — do NOT trust the rest of the path
-    const urlPath = url.startsWith("/uploads/") ? url.slice("/uploads/".length) : null;
-    if (!urlPath) {
-      console.warn("deleteCardPhoto: unexpected URL format, skipping:", url);
-      return false;
-    }
-
-    // Reject any path that contains directory traversal sequences
-    if (urlPath.includes("..") || urlPath.includes("/") || urlPath.includes("\\")) {
-      console.error("deleteCardPhoto: path traversal attempt detected:", url);
-      return false;
-    }
-
-    const filePath = path.resolve(UPLOAD_DIR, urlPath);
-
-    // Final guard: resolved path must be inside UPLOAD_DIR
-    if (!filePath.startsWith(UPLOAD_DIR + path.sep)) {
-      console.error("deleteCardPhoto: resolved path escapes upload dir:", filePath);
-      return false;
-    }
-
-    await unlink(filePath);
-    return true;
-  } catch (err: unknown) {
-    // If file doesn't exist, ignore the error
-    if (err && typeof err === 'object' && 'code' in err && err.code === "ENOENT") return true;
-    console.error("Failed to delete card photo:", err);
-    return false;
+  // Cloudinary unsigned uploads don't support deletion via API.
+  // Log the URL for manual cleanup if needed.
+  if (url) {
+    console.log("deleteCardPhoto: skipping Cloudinary deletion for:", url);
   }
+  return true;
 }
